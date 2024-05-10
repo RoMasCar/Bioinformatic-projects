@@ -1,0 +1,155 @@
+---
+title: "PEC3_Análisis de Datos Omicos"
+author: "Roger_Massaguer"
+date: "`r Sys.Date()`"
+output:
+ pdf_document:
+    toc: true
+    toc_depth: 2
+    number_sections: true
+editor_options: 
+  chunk_output_type: console
+---
+```{r class.source = 'fold-hide', setup, include=FALSE}
+library(knitr)
+
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+opts_chunk$set(echo=FALSE,
+	             cache=TRUE,
+               prompt=FALSE,
+               tidy=TRUE,
+               comment=NA,
+               message=FALSE,
+               warning=FALSE)
+opts_knit$set(width=75)
+```
+
+ \newpage 
+
+# Abstract
+
+Los datos del estudio original se han obtenido a partir de los archivos fastq del link facilitado en el enunciado del problema <https://drive.google.com/drive/folders/1mbBfMRth-VGUqOd_1zgPj_EM5kde8P4L?usp=sharing>.
+
+Estos, han sido extraídos del portal web de la base de datos El Recurso Internacional de Muestras Genómicas (IGSR) que mantiene y comparte los recursos de variación genética humana creados por el Proyecto 1000 Genomas, concretamente de la muestra HG00128, vinculada a un panel de 99 británicos de inglaterra y escòcia. <https://catalog.coriell.org/0/Sections/Search/Sample_Detail.aspx?Ref=HG00128&Product=CC>
+
+Para lograr el objetivo del informe se han procesado estos datos (pasos que se explican en el apartado de métodos) con la plataforma Galaxy(servidor europeo, “galaxy.eu”) y se ha implementado con Rmarkdown. Las herramientas que se han utilizado dentro de la plataforma Galaxy son las siguientes:
+  1-	Cargar los datos: Upload data
+  2-	Alineamiento de los “reads” al genoma de referencia: Map with BWA
+  3-	Check alignment:  Samtool idxstats
+  4-	Visualizar los archivos BAM con un visor de genoma integrado
+  5-  Selección de variables: FreeBayes y SnpEff
+
+
+# Objetivos
+
+El estudio se basa en el análisis de datos de lecturas cortas del exoma del cromosoma 22 de un único individuo humano. En el conjunto de datos hay un millón de lecturas de 76 pb, producidas en una Illumina GAIIx a partir de ADN enriquecido en el exoma. Estos datos se generaron en el marco del proyecto Genomas 1000 genomas.
+Este informe muestra un análisis para buscar variantes minoritarias (SNVs/INDELs) en datos de exoma del proyecto de los 1000 genomas. Elproyecto de los 1000 genomas pretendía encontrar variantes genéticas comunes con frecuencias de al menos el 1% en las poblacionesestudiadas. Se usará la plataforma Galaxy para el análisis de los datos extraídos de individuos declarados sanos
+El objetivo de este informe es mostrar los resultados de un análisis de búsqueda de variantes minoritarias (SNVs/INDELs) de exoma paraaveriguar si existen variantes de determinados genes en individuos sanos.
+
+
+# Procedimiento
+
+## Cargar los datos 
+
+Como primer paso se han cargado los datos en la plataforma Galaxy con la herramienta “Upload data” y la opción “Choose local file” para seleccionar el archivo “.fastq” descargado del link aportado en el enunciado. Seleccionando los archivos: “exomeSample9_2.fq” y “exomeSample9_1.fq”. Como resultado se obtienen cada una de las secuencias en formato fastq. Dentro del archivo generado se modifica la base de datos por la que usará en el análisis (versión hg19 del genoma humano).
+
+![ Carga de datos en Galaxy]("C:\Users\Usuario\Documents\img\F1.png")
+
+
+Una vez cargados los datos en el sistema, el primer paso que tendría que proceder siempre, en unos datos de ultrasecuenciación , sería hacer un control de calidad, que se puede procesar dentro del mismo programa de Galaxy con la opción FastQ- Quality control. 
+Este paso, finalmente no se va a realizar dadas las instrucciones de la actividad.
+
+## Alineamiento de los “reads” al genoma de referencia
+
+Acto seguido se prosigue a realizar el alineamiento de los reads con un genoma de referencia Existen múltiples programas de alineamiento, por lo que se debe seleccionar aquel que funciones mejor con las características de los reads a trabajar. A parte también se deberá elegir un genoma de referencia, en este caso lo vamos a alinear con una de las ultimas versiones del genoma humano: Human genoma 19 (hg19). Se va a usar uno de los alineadores que se ofrecen en el programa Galaxy: Burrows-Wheeler Aligner (BWA), que se conoce de los más eficientes hasta la fecha. Se ha usado “Map with BWA” en lugar de “BWA-MEM” ya que el primero es para secuencias cortas, como es el caso, mientras que el segundo es para secuencias largas.
+Una vez cargado el alineamiento, se obtiene una serie de secuencias alineadas:
+Muestra de las frecuencias de secuencias alineadas por cromosoma por BWA:
+
+![ Freq. secuencias]("C:\Users\Usuario\Documents\img\F2.png")
+
+## Check alignment
+
+El siguiente paso consiste en revisar la calidad del alineamiento. Normalmente hay una serie de herramientas que son las BAM tool, que nos va a permitir sacar algunas estadísticas para ver y decidir si el resultados del alineamiento es satisfactorio. Este control lo haremos con la herramienta de Galaxy “Samtool idxstats”. Esta función nos va a genera un informe del alineamiento obteniendo una tabla en la que se observa cuantas secuencias aparecen asociadas a cada una de los cromosomas. En este estudio vemos que en el cromosoma 1 aparecen 216467 secuencias (Fig3.). 
+
+![Resultado de la función Samtoolidxstats]("C:\Users\Usuario\Documents\img\F3.jpg")
+
+![Referencias columnas Figura 3]("C:\Users\Usuario\Documents\img\F4.png")
+
+## Visualizar los archivos BAM con un visor de genoma integrado
+
+Además de obtener las estadísticas resultantes del paso anterior, podemos visualizar el alineamiento utilizando un programa de visualización genómica como el Integrated Genome Viewer (IGV). 
+
+Integrative Genomics Viewer (IGV) es una herramienta interactiva de alto rendimiento y fácil uso para la exploración visual de datos genómicos. Soporta la integración flexible de todos los tipos comunes de datos genómicos y metadatos, generados por el investigador o disponibles públicamente, cargados desde fuentes locales o en la nube.
+
+![Visualización archivo BAM con IGV_1]("C:\Users\Usuario\Documents\img\F5.png")
+
+![Visualización archivo BAM con IGV_2]("C:\Users\Usuario\Documents\img\F6.png")
+
+Una vez obtenido el alineamiento se procede a realizar  un “Pileup”, para ver si las secuencias se distribuyen de forma homogénea entre las distintas regiones. Con esta función se podrá obtener un resumen del numero de secuencias por cada  una de las regiones.
+
+![Pileup de las secuencias del estudio]("C:\Users\Usuario\Documents\img\F7.png")
+
+Obtenida la tabla con los parámetros entrados por defecto, se puede observar que en una serie de posiciones que resultan indicativo de un buen resultado. 
+
+
+
+
+## Selección de variables
+Para la selección de variables es necesario usar un variant caller, concretamente “FreeBayes”. Esta función, va a generar una tabla que indica en un conjunto de posiciones, cual es la secuencia de referencia y cual es las variantes que aparecen en cada una de estas posiciones. Estas ultimas van a tener un valor de calidad, permitiendo identificar los scores de aquellas posiciones donde aparecen variantes. 
+
+![Resultado FreeBayes]("C:\Users\Usuario\Documents\img\F8.png")
+
+![Referencias columnas Figura 8]("C:\Users\Usuario\Documents\img\F9.png")
+
+
+
+Para finalizar el estudio, se van a anotar las variantes que se han  detectado, por tal de saber cuál es el efecto de estas posibles variantes. Ejecutando el programa SnpEff sobre el resultados obtenido anteriormente del FreeBayes.
+
+Una vez obtenidas todas las variantes candidatas se han anotado en función de sus ubicaciones genómicas y se han predicho los efectos decodificación con la herramienta “SnpEff eff” . Las ubicaciones describen si la variante se encuentra en un intrón, un exón, upstream/downstream, una región de splicing o una región intergénica mientras que los efectos denotan si la variante causa sobre la proteína codificada un cambio de aminoácido sinónimo o no sinónimo, ganancia o pérdida de codón de inicio, ganancia o pérdida de codón de parada o cambio de marco de lectura. 
+
+El resultado de esta acción va a ser por un lado un output de un archivo VCF, donde se generar las variantes con más información y un informe con información de cada una de la variantes que se contemplan.
+
+Tras emplear la herramienta “SnpEff eff” se obtienen un archivo con los datos crudos y además un archivo html con diferentes tablas que muestran información sobre las variantes. A continuación se muestra la tabla resumen y el tipo de variantes de forma representativa:
+
+![Informe sobre las variantes (SnpEff eff)]("C:\Users\Usuario\Documents\img\F10.png")
+
+
+De esta tabla podemos concluir que se obtienen 31.460 SNPs, de los cuáles 606 son inserciones, 900 deleciones, no hay variaciones estructurales (Fig.11)
+
+Además nos proporcionará distintas informaciones, des de tipos distintos de cambios que generarán ya sea por el impacto  como por el efecto de traducción a proteína.
+
+![Tabla de resultados 1)]("C:\Users\Usuario\Documents\img\F11.png")
+
+![Tabla de resultados 2)]("C:\Users\Usuario\Documents\img\F12.png")
+
+
+
+
+
+ \newpage 
+
+
+#  Referencias
+
+
+5889a7897b93c9e3d7c687e5736c96cdee468058 @ www.genomamayor.com. (s.d.).     https://www.genomamayor.com/analisis-de-exomas/#:~:text=El servicio de     análisis de,a nivel de estudios clínicos.
+
+SIAF, importancia de los modulos del. (2011).  Watch @ Www.Youtube.Com. En The True South Through My Eyes - HK Edgerton.
+
+https://www.youtube.com/watch?v=mFlITzqRBWY
+9498bc1ea2001c1b4e8a52bc20b9073aa10b99cc @ www.kolabtree.com. (s.d.). https://www.kolabtree.com/blog/es/guia-paso-por-paso-del-analisis-delos-datos-del-na/#Alignment
+
+Index @ Bio-Bwa.Sourceforge.Net. (s.d.). https://bio-bwa.sourceforge.net/
+1d2e393c9fd56f154ffde8badffc5b261f3cd1c6 @ www.institutobernabeu.com. (s.d.). https://www.institutobernabeu.com/es/foro/que-es-el-analisis-genetico-de-exoma-tipos-de-analisis-geneticos-de-exomas/
+
+1191eb6b7e007af8f3b232257d4b351736b72d9f @ software.broadinstitute.org. (s.d.). https://software.broadinstitute.org/software/igv/
+Sánchez, Á., Gonzalo, R., & Ferrer, M. (s.d.). Introduction to Variant Analysis.
+
+f8a11901219e36f391cc54b90730db0bdbd426a2 @ materials.campus.uoc.edu. (s.d.). https://materials.campus.uoc.edu/cdocent/PID_00292294/
+c431ae39cfbd72d13ae531e10469e7921bc7e5e5 @ igv.org. (s.d.). https://igv.org/app/
+
+preview @ usegalaxy.org. (s.d.). https://usegalaxy.org/datasets/f9cad7b01a4721353c0c87580dc4d8e6/preview
+
