@@ -1,0 +1,254 @@
+---
+title: 'PEC3: Diagnostic prediction of cancers using gene expression profiling'
+author: "Roger_Massaguer"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: yes
+  html_document: default
+header-includes:
+  - \renewcommand{\contentsname}{Sumario}
+
+---
+\newpage
+
+# Algoritmo Support Vector Machine
+
+Los algoritmos SVM (_Support Vector Machine_) procesan datos distribuidos en un espacio multidimensional, y los utilizan para definir una superficie (hiperplano) que divide dicho espacio en regiones homogéneas que agrupan observaciones afines. Estos algoritmos se usan en el campo del aprendizaje automático tanto para clasificar observaciones, como para hacer predicciones. Este pequeño script pondrá en aplicación una de sus funciones más sencillas, la clasificación de un conjunto de observaciones en dos grupos diferenciados.
+
+Cuando las observaciones de ambos grupos están claramente separadas y pueden separarse completamente mediante una línea, plano, o su equivalente multidimensional (hiperplano), hablamos de **datos separables linealmente**. Sin embargo, en la vida real es muy común que la relación entre variables no sea lineal. Es estos casos, se pueden seguir dos estrategias: aplicación de la _slack variable_ (variable fluctuante) y el uso del _kernel trick_ (cambio de la función kernel).
+
+El caso de la variable _slack_ consiste en añadir una variable el algoritmo que "permite" dejar observaciones de entrenamiento fuera del grupo al que propiamente pertenecen. Aquí lo que produce el algoritmo es una optimización del hiperplano para miniminar la distancia de esas observaciones hasta el límite que define su clasificación correcta.
+
+El _kernel trick_ es matemáticamente más complejo y consiste en añadir nuevas dimensiones a los datos y usarlas para identificar las relaciones no lineales entre las variables. Aquí las superficies que definen los límites entre grupos ya no son hiperplanos, sino curvas de mayor o menor complejidad.
+
+## Fortalezas y debilidades del algoritmo SVM
+
+|Fortalezas|Debilidades|
+|----------------------------------------|----------------------------------------|
+| - Se puede usar tanto para problemas de clasificación como para predicción numérica. | - Encontrar el modelo más adecuado requiere probar varias combinaciones de kernels y parámetros. |
+|||
+| - Poco sensible al ruido en los datos y poco propenso al sobreajuste (overfitting). | - El entrenamiento puede ser lento, en especial se el set de datos tiene un gran número de características o ejemplos. |
+|||
+| - Puede ser de más fácil uso que las redes neurales, especialmente debido a la existencia de varios algoritmos SVM que han sido adaptados para su uso en ciencia de datos. | - El modelo resultante del entrenamiento es de tipo caja negra, complejo y difícil (si no imposible) de interpretar. |
+|||
+| - Popular debido a su alta precisión y a la fama debida a su uso ganador en competiciones de minería de datos. | |
+
+
+# Recoger datos de var. predictora y la clase
+
+```{r}
+#Lectura de datos:
+data <- read.csv("C:/Users/Usuario/Desktop/UOC_8.22/ML/PEC3/data3.csv")
+class <- read.csv("C:/Users/Usuario/Desktop/UOC_8.22/ML/PEC3/class3.csv", sep="")
+
+```
+
+```{r}
+observaciones <- nrow(data)
+variables <- ncol(data)
+
+```
+
+El primer conjunto de datos denominado data3.csv esta formado por **`r observaciones`** muestras con **`r variables`** variables.
+
+El segundo conjunto de datos denominado class3.csv corresponde a la clase con notación numérica.
+
+Añadir variable clase como factor al conjunto de datos:
+
+```{r}
+lab.tumor <- c("B-like","ERBB2p", "Nrm" , "Lum-B.C" )
+clase.lab.tumor <- factor(class$x,labels=lab.tumor)
+clase.lab.tumor
+data$class <- clase.lab.tumor
+data$class <- as.factor(class$x)
+
+```
+
+# Exploracion de los datos
+
+Extraer las 6 primeras muestras  de las 5 primeras variables
+
+```{r}
+
+head(data[,1:5])
+
+```
+
+Extraer las 6 ultimas observaciones de las 5 ultimas variables
+
+```{r}
+
+tail(data[,5560:5564])
+
+```
+
+Muestra la estructura de las anteriores 9 variables
+
+```{r}
+
+str(data[1:6, (ncol(data)-8):ncol(data)])
+
+```
+Breve estadistica descriptiva de las 9 anteriores variables es:
+
+```{r}
+
+summary(data[,(ncol(data)-8):ncol(data)])
+
+```
+
+Numero de observaciones para cada clase
+
+```{r}
+table(data$class)
+```
+
+
+Dividir el dataset en una parte de entrenamiento y en otra de test.
+
+Generamos un indice de unos y doses para el numero de filas de nuestro conjunto de datos —nrow— con las probabilidades deseadas, en nuestro ejemplo un 67% y un 33%. Con ese indice creamos los dos subconjuntos: data_training y data_test.
+
+```{r}
+set.seed(12345)
+ind <- sample(2, nrow(data), replace = TRUE, prob = c(0.67, 0.33))
+data_training <- data[ind == 1, ]
+data_test<- data[ind == 2, ] 
+
+```
+
+# Entrenar el modelo SVM lineal con datos aportados
+
+Usando la funcion ksvm del paquete kernlab.
+
+```{r}
+install.packages("kernlab", repos = "http://cran.us.r-project.org")
+library(kernlab)
+set.seed(1234567) 
+data_model1 <- ksvm(class ~ ., data = data_training,
+                      kernel = "vanilladot")
+data_model1  
+
+
+```
+
+# Evaluacion del rendimiento del algoritmo
+
+Valoracion con los datos del test y clasificar las muestras de los datos de test con la función predict.
+
+```{r}
+data_predict1 <- predict(data_model1, data_test)
+
+res <- table(data_predict1, data_test$class)
+```
+
+Matriz de confusion con las predicciones y las clases. 
+
+La funcion confusionMatrix del paquete caret genera esta matriz.
+
+```{r}
+install.packages("caret", repos = "http://cran.us.r-project.org")
+library(caret)
+(conf_mat.s1 <- confusionMatrix(res))
+```
+
+El algoritmo de SVM lineal tiene un valor de precision de 0.95 y un estadistico K = 0.93. Los valores de sensibilidad y especificidad varian segun el factor, obteniendo como valor medio 0.94 y 0.98 respectivamente.
+
+
+# Modelo SVM con kernel rbf
+
+SVM con funcion gaussiana o rbf.
+
+```{r}
+set.seed(12345) 
+data_model2 <- ksvm(class ~ ., data = data_training,
+                      kernel = "rbfdot")
+data_model2
+```
+
+Evaluar rendimiento del modelo con los datos de test. Se debe de clasificar las muestras de los datos de test con la funcion predict.
+
+```{r}
+data_predict2 <- predict(data_model2, data_test)
+res <- table(data_predict2, data_test$class)
+```
+
+Se obtiene la matriz de confusion con las predicciones y las clases reales. La función confusionMatrix del paquete caret genera esta matriz y calcula diferentes del rendimiento del algoritmo.
+
+```{r}
+(conf_mat.s2 <- confusionMatrix(res))
+```
+
+El algoritmo de SVM de funcion RBF tiene un valor de precision de 0.74 y un estadistico k = 0.64. Como se puede esperar, los valores de sensibilidad y especificidad varian segun la clase, obteniendo como valor medio 0.73 y 0.90 respectivamente.
+En resumen, se puede decir que el modelo SVM con la funcion RBF obtiene una menor precision que el modelo de SVM con funcio lineal. Ademas, el nuevo modelo obtenido de SVM con la función RBF tiene menor valor de kappa que el modelo mas sencillo de SVM con función lineal.
+
+
+# Modelo SVM lineal con 3-fold crossvalidation
+
+Realizar el algoritmo de SVM con la funcion lineal con 3-fold crossvalidation usando el paquete caret.
+
+El modelo de entrenamiento es:
+
+```{r}
+set.seed(12345) 
+model_sc <- train(class ~ ., data, method='svmLinear',
+                  trControl= trainControl(method='cv', number=3),
+                  tuneGrid= NULL, trace = FALSE)
+model_sc
+```
+
+El modelo obtenido con el algoritmo de SVM lineal con 3-fold crossvalidation tiene una precision de 0.96 y un valor k de 0.95.
+Finalmente, podemos decir que el modelo obtenido con la funcion ‘svmLinear’ y 3-fold crossvalidation obtiene mayor precision que el modelo SVM de función lineal con particion train/test .
+Ademas, el modelo obtenido con la funcion ‘svmLinear’ y 3-fold crossvalidation tiene mayor valor de kappa que el modelo SVM de funcion lineal con partición train/test .
+
+# Modelo SVM con kernel gaussiano con 3-fold crossvalidation
+
+Evaluacion rendimiento del algoritmo SVM con kernel RBF para diferentes valores del hiperparámetro C y sigma.
+
+Se ha escogido como valores de sigma y C:
+
+```{r}
+(mysigma <- c(.008, .009, .01, .011, .012, .013))
+(myC <- c(0.9, 1, 1.1, 1.25, 1.35))
+```
+
+La evolucion del rendimiento es:
+
+```{r}
+set.seed(12345) 
+
+grid <- expand.grid(sigma = mysigma, C = myC)
+model_sr <- train(class ~ ., data, method='svmRadial',
+                  trControl= trainControl(method='cv', number=3),
+                  tuneGrid= grid, trace = FALSE)
+plot(model_sr)
+
+model_sr
+
+```
+
+Por tanto, el mejor modelo de SVM con kernel gaussiano de los revisados basado en la “accuracy” tiene como hiperparametros:
+
+```{r}
+model_sr$bestTune
+
+```
+
+Su rendimiento es
+
+```{r}
+model_sr$results[which.max(model_sr$results[,3]),3:6]
+```
+
+# Referencias:
+
+Lantz, B. (2019). Machine Learning with R Second Edition all your data analysis problems.
+
+Machines, S. V. (2000). Unidad 6 : Predicción del tipo de tejido normal / tumoral en cáncer de colon usando el algoritmo de Support Vector Machines . 3. 
+
+Gu, M. L., & Semanales, E. (s.d.). Comentario general sobre los contenidos de la segunda unidad Materiales de estudio Actividades complementarias. 7, 7-8.
+
+6deeb154c3668d9105eca4b937a411cf6d2e4617 @ materials.campus.uoc.edu. (s.d.). https://materials.campus.uoc.edu/cdocent/PID_00285309/
+
+516557e1427b51fc2ba024d847c80668fb17353c @ materials.campus.uoc.edu. (s.d.). https://materials.campus.uoc.edu/cdocent/PID_00285305/
+
